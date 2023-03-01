@@ -45,6 +45,14 @@ impl<T: DataMarker> Data<T> {
     }
 }
 
+impl<T: DataMarker> DataMarker for Data<T> {
+    type Query = T::Query;
+
+    fn create_queries(&self) -> Vec<Self::Query> {
+        T::create_queries(&self.0)
+    }
+}
+
 impl<T> Deref for Data<T> {
     type Target = T;
 
@@ -192,8 +200,8 @@ macro_rules! storage_manager {
                     .flatten()
             }
             pub fn register_storage<
-                T: DataStorage<Exc, D> + 'static,
-                Exc: DataQueryExecutor<D> + 'static,
+                T: datacache::DataStorage<Exc, D> + 'static,
+                Exc: datacache::DataQueryExecutor<D> + 'static,
                 D: datacache::DataMarker + 'static,
             >(
                 &mut self,
@@ -201,7 +209,7 @@ macro_rules! storage_manager {
             ) {
                 let id = std::any::TypeId::of::<T>();
                 self.data.insert(std::any::TypeId::of::<D>(), id.clone());
-                self.storage.insert(id, Arc::new(storage));
+                self.storage.insert(id, std::sync::Arc::new(storage));
             }
         }
     };

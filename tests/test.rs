@@ -1,10 +1,8 @@
 use std::convert::Infallible;
-use std::sync::Arc;
 
 use datacache::Data;
 use datacache::DataMarker;
 use datacache::DataQueryExecutor;
-use datacache::DataStorage;
 
 #[test]
 fn test_get_storage_by_data() {
@@ -26,7 +24,6 @@ struct MacroData {
 struct OtherData {
     #[datacache(queryable)]
     id: i32,
-    text: String,
 }
 
 struct MacroExecutor;
