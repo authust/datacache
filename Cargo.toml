@@ -1,0 +1,16 @@
+[workspace]
+members = ["derive"]
+
+[package]
+name = "datacache"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+async-trait = ">=0.1.0"
+dashmap = ">=5.4.0"
+derive = { path = "derive", package = "datacache_derive" }
+futures-util = { version = ">=0.3.0", default-features = false }
+moka = { version = ">=0.10.0", features = ["future"] }
