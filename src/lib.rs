@@ -9,22 +9,18 @@ use std::{
 pub use derive::DataMarker;
 
 #[doc(hidden)]
-pub use async_trait::async_trait as __internal_async_trait;
-
-#[doc(hidden)]
-pub use dashmap as __internal_dashmap;
-#[doc(hidden)]
-pub use futures_util as __internal_futures_util;
-#[doc(hidden)]
-pub use moka as __internal_moka;
-
-#[doc(hidden)]
-pub use derive::storage as __internal_storage_macro;
+pub mod __internal {
+    pub use async_trait::async_trait;
+    pub use dashmap;
+    pub use derive::storage;
+    pub use futures_util::FutureExt;
+    pub use moka;
+}
 
 #[macro_export]
 macro_rules! storage {
     ($vis:vis $ident:ident($exc:ty, $data:ty), id($id_field:ident: $id_ty:ty), unique($($unique:ident: $unique_ty:ty),* ), fields($($field:ident: $field_ty:ty),* )) => {
-        $crate::__internal_storage_macro!($vis $ident($exc, $data), id($id_field: $id_ty), unique($($unique: $unique_ty),*), fields($($field: $field_ty),*));
+        $crate::__internal::storage!($vis $ident($exc, $data), id($id_field: $id_ty), unique($($unique: $unique_ty),*), fields($($field: $field_ty),*));
     };
 }
 

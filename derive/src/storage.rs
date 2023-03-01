@@ -121,18 +121,18 @@ pub(crate) fn storage_expand(input: StorageArgs) -> Result<TokenStream, Error> {
     let out = quote! {
         #vis struct #ident {
             executor: #executor_path,
-            data: datacache::__internal_moka::future::Cache<<#executor_path as DataQueryExecutor<#data_path>>::Id, Data<#data_path>>,
-            query_cache: datacache::__internal_moka::future::Cache<<#data_path as DataMarker>::Query, Data<#data_path>>,
-            query: datacache::__internal_dashmap::DashMap<<#data_path as DataMarker>::Query, <#executor_path as DataQueryExecutor<#data_path>>::Id>,
+            data: datacache::__internal::moka::future::Cache<<#executor_path as DataQueryExecutor<#data_path>>::Id, Data<#data_path>>,
+            query_cache: datacache::__internal::moka::future::Cache<<#data_path as DataMarker>::Query, Data<#data_path>>,
+            query: datacache::__internal::dashmap::DashMap<<#data_path as DataMarker>::Query, <#executor_path as DataQueryExecutor<#data_path>>::Id>,
         }
 
         impl #ident {
             pub fn new(executor: #executor_path) -> Self {
                 Self {
                     executor,
-                    data: datacache::__internal_moka::future::Cache::builder().build(),
-                    query_cache: datacache::__internal_moka::future::Cache::builder().build(),
-                    query: datacache::__internal_dashmap::DashMap::new(),
+                    data: datacache::__internal::moka::future::Cache::builder().build(),
+                    query_cache: datacache::__internal::moka::future::Cache::builder().build(),
+                    query: datacache::__internal::dashmap::DashMap::new(),
                 }
             }
 
@@ -152,7 +152,7 @@ pub(crate) fn storage_expand(input: StorageArgs) -> Result<TokenStream, Error> {
             }
         }
 
-        #[datacache::__internal_async_trait]
+        #[datacache::__internal::async_trait]
         impl DataStorage<#executor_path, #data_path> for #ident {
             async fn find_one(
                 &self,
@@ -163,7 +163,7 @@ pub(crate) fn storage_expand(input: StorageArgs) -> Result<TokenStream, Error> {
                         return Ok(data);
                     }
                 }
-                let fut = datacache::__internal_futures_util::FutureExt::map(self
+                let fut = datacache::__internal::FutureExt::map(self
                     .executor
                     .find_one(query.clone()), |out| out.map(Data::new));
                 let data = self.query_cache.try_get_with(query, fut).await?;
@@ -197,7 +197,7 @@ pub(crate) fn storage_expand(input: StorageArgs) -> Result<TokenStream, Error> {
                         return Ok(Some(data));
                     }
                 }
-                let fut =  datacache::__internal_futures_util::FutureExt::map(self.executor.find_optional(query.clone()), |out| {
+                let fut =  datacache::__internal::FutureExt::map(self.executor.find_optional(query.clone()), |out| {
                     out.map_err(InternalLoadError::Error)
                         .and_then(|opt| match opt {
                             Some(v) => Ok(Data::new(v)),

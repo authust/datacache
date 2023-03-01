@@ -30,7 +30,7 @@ struct OtherData {
 }
 
 struct MacroExecutor;
-#[datacache::__internal_async_trait]
+#[datacache::__internal::async_trait]
 impl DataQueryExecutor<MacroData> for MacroExecutor {
     type Error = Infallible;
     type Id = i32;
@@ -40,7 +40,10 @@ impl DataQueryExecutor<MacroData> for MacroExecutor {
     async fn find_all_ids(&self, _query: MacroDataQuery) -> Result<Vec<Self::Id>, Self::Error> {
         todo!()
     }
-    async fn find_optional(&self, _query: MacroDataQuery) -> Result<Option<MacroData>, Self::Error> {
+    async fn find_optional(
+        &self,
+        _query: MacroDataQuery,
+    ) -> Result<Option<MacroData>, Self::Error> {
         todo!()
     }
     async fn create(&self, _data: Data<MacroData>) -> Result<(), Self::Error> {
@@ -54,7 +57,7 @@ impl DataQueryExecutor<MacroData> for MacroExecutor {
     }
 }
 struct OtherExecutor;
-#[datacache::__internal_async_trait]
+#[datacache::__internal::async_trait]
 impl DataQueryExecutor<OtherData> for OtherExecutor {
     type Error = Infallible;
     type Id = i32;
@@ -64,7 +67,10 @@ impl DataQueryExecutor<OtherData> for OtherExecutor {
     async fn find_all_ids(&self, _query: OtherDataQuery) -> Result<Vec<Self::Id>, Self::Error> {
         todo!()
     }
-    async fn find_optional(&self, _query: OtherDataQuery) -> Result<Option<OtherData>, Self::Error> {
+    async fn find_optional(
+        &self,
+        _query: OtherDataQuery,
+    ) -> Result<Option<OtherData>, Self::Error> {
         todo!()
     }
     async fn create(&self, _data: Data<OtherData>) -> Result<(), Self::Error> {
