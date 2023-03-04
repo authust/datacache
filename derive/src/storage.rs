@@ -157,49 +157,49 @@ pub(crate) fn storage_expand(input: StorageArgs) -> Result<TokenStream, Error> {
         impl datacache::DataStorage<#executor_path, #data_path> for #ident {
             async fn find_one(
                 &self,
-                query: <#data_path as datacache::DataMarker>::Query,
+                query: &<#data_path as datacache::DataMarker>::Query,
             ) -> Result<datacache::Data<#data_path>, std::sync::Arc<<#executor_path as datacache::DataQueryExecutor<#data_path>>::Error>> {
-                if let Some(id) = self.find_id(&query) {
+                if let Some(id) = self.find_id(query) {
                     if let Some(data) = self.data.get(&id) {
                         return Ok(data);
                     }
                 }
-                let fut = datacache::__internal::FutureExt::map(datacache::DataQueryExecutor::find_one(self.executor.as_ref(), query.clone()), |out| out.map(|v| Some(datacache::Data::new(v))));
-                let data = self.query_cache.try_get_with(query, fut).await?.expect("Option should be Some(...)");
+                let fut = datacache::__internal::FutureExt::map(datacache::DataQueryExecutor::find_one(self.executor.as_ref(), query), |out| out.map(|v| Some(datacache::Data::new(v))));
+                let data = self.query_cache.try_get_with(query.clone(), fut).await?.expect("Option should be Some(...)");
                 self.insert_data(data.clone()).await;
                 Ok(data)
             }
             async fn find_all(
                 &self,
-                query: Option<<#data_path as datacache::DataMarker>::Query>,
+                query: Option<&<#data_path as datacache::DataMarker>::Query>,
             ) -> Result<Vec<datacache::Data<#data_path>>, std::sync::Arc<<#executor_path as datacache::DataQueryExecutor<#data_path>>::Error>>
             {
                 let ids = datacache::DataQueryExecutor::find_all_ids(self.executor.as_ref(), query).await?;
                 let mut values = Vec::new();
                 for id in ids {
-                    let data = self.find_one(<#data_path as datacache::DataMarker>::Query::#id_field(id)).await?;
+                    let data = self.find_one(&<#data_path as datacache::DataMarker>::Query::#id_field(id)).await?;
                     values.push(data);
                 }
                 Ok(values)
             }
             async fn find_optional(
                 &self,
-                query: <#data_path as datacache::DataMarker>::Query,
+                query: &<#data_path as datacache::DataMarker>::Query,
             ) -> Result<Option<datacache::Data<#data_path>>, std::sync::Arc<<#executor_path as datacache::DataQueryExecutor<#data_path>>::Error>>
             {
                 enum InternalLoadError {
                     Error(<#executor_path as datacache::DataQueryExecutor<#data_path>>::Error),
                     NotFound,
                 }
-                if let Some(id) = self.find_id(&query) {
+                if let Some(id) = self.find_id(query) {
                     if let Some(data) = self.data.get(&id) {
                         return Ok(Some(data));
                     }
                 }
-                let fut = datacache::__internal::FutureExt::map(datacache::DataQueryExecutor::find_optional(self.executor.as_ref(), query.clone()), |out| {
+                let fut = datacache::__internal::FutureExt::map(datacache::DataQueryExecutor::find_optional(self.executor.as_ref(), query), |out| {
                     out.map(|opt| opt.map(datacache::Data::new))
                 });
-                let data = self.query_cache.try_get_with(query, fut).await?;
+                let data = self.query_cache.try_get_with(query.clone(), fut).await?;
                 if let Some(data) = &data {
                     self.insert_data(data.clone()).await;
                 }
@@ -221,10 +221,10 @@ pub(crate) fn storage_expand(input: StorageArgs) -> Result<TokenStream, Error> {
 
             async fn delete(
                 &self,
-                query: <#data_path as datacache::DataMarker>::Query,
+                query: &<#data_path as datacache::DataMarker>::Query,
             ) -> Result<(), <#executor_path as datacache::DataQueryExecutor<#data_path>>::Error> {
-                self.query.remove(&query);
-                self.query_cache.invalidate(&query).await;
+                self.query.remove(query);
+                self.query_cache.invalidate(query).await;
                 let ids = datacache::DataQueryExecutor::delete(self.executor.as_ref(), query).await?;
                 for id in ids {
                     self.data.invalidate(&id).await;
@@ -233,10 +233,10 @@ pub(crate) fn storage_expand(input: StorageArgs) -> Result<TokenStream, Error> {
             }
             async fn invalidate(
                 &self,
-                query: <#data_path as datacache::DataMarker>::Query,
+                query: &<#data_path as datacache::DataMarker>::Query,
             ) -> Result<(), <#executor_path as datacache::DataQueryExecutor<#data_path>>::Error> {
-                self.query.remove(&query);
-                self.query_cache.invalidate(&query).await;
+                self.query.remove(query);
+                self.query_cache.invalidate(query).await;
                 let ids = datacache::DataQueryExecutor::find_all_ids(self.executor.as_ref(), Some(query)).await?;
                 for id in ids {
                     self.data.invalidate(&id).await;

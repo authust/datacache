@@ -36,18 +36,18 @@ impl DataQueryExecutor<MacroData> for MacroExecutor {
     fn get_id(&self, data: &MacroData) -> Self::Id {
         data.id
     }
-    async fn find_one(&self, _query: MacroDataQuery) -> Result<MacroData, Self::Error> {
+    async fn find_one(&self, _query: &MacroDataQuery) -> Result<MacroData, Self::Error> {
         todo!()
     }
     async fn find_all_ids(
         &self,
-        _query: Option<MacroDataQuery>,
+        _query: Option<&MacroDataQuery>,
     ) -> Result<Vec<Self::Id>, Self::Error> {
         todo!()
     }
     async fn find_optional(
         &self,
-        _query: MacroDataQuery,
+        _query: &MacroDataQuery,
     ) -> Result<Option<MacroData>, Self::Error> {
         todo!()
     }
@@ -57,7 +57,7 @@ impl DataQueryExecutor<MacroData> for MacroExecutor {
     async fn update(&self, _data: Data<MacroData>) -> Result<(), Self::Error> {
         todo!()
     }
-    async fn delete(&self, _data: MacroDataQuery) -> Result<Vec<Self::Id>, Self::Error> {
+    async fn delete(&self, _data: &MacroDataQuery) -> Result<Vec<Self::Id>, Self::Error> {
         todo!()
     }
 }
@@ -69,18 +69,18 @@ impl DataQueryExecutor<OtherData> for OtherExecutor {
     fn get_id(&self, data: &OtherData) -> Self::Id {
         data.id
     }
-    async fn find_one(&self, _query: OtherDataQuery) -> Result<OtherData, Self::Error> {
+    async fn find_one(&self, _query: &OtherDataQuery) -> Result<OtherData, Self::Error> {
         todo!()
     }
     async fn find_all_ids(
         &self,
-        _query: Option<OtherDataQuery>,
+        _query: Option<&OtherDataQuery>,
     ) -> Result<Vec<Self::Id>, Self::Error> {
         todo!()
     }
     async fn find_optional(
         &self,
-        _query: OtherDataQuery,
+        _query: &OtherDataQuery,
     ) -> Result<Option<OtherData>, Self::Error> {
         todo!()
     }
@@ -90,7 +90,7 @@ impl DataQueryExecutor<OtherData> for OtherExecutor {
     async fn update(&self, _data: Data<OtherData>) -> Result<(), Self::Error> {
         todo!()
     }
-    async fn delete(&self, _data: OtherDataQuery) -> Result<Vec<Self::Id>, Self::Error> {
+    async fn delete(&self, _data: &OtherDataQuery) -> Result<Vec<Self::Id>, Self::Error> {
         todo!()
     }
 }

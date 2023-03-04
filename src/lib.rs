@@ -134,6 +134,7 @@ macro_rules! storage_ref {
 }
 
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[repr(transparent)]
 pub struct DataRef<D: DataMarker>(pub D::Query);
 
 impl<D> Debug for DataRef<D>
@@ -160,8 +161,56 @@ where
     D: DataMarker,
     D::Query: Clone,
 {
+    #[inline(always)]
     fn clone(&self) -> Self {
         Self(self.0.clone())
+    }
+}
+
+impl<D> PartialEq for DataRef<D>
+where
+    D: DataMarker,
+    D::Query: PartialEq,
+{
+    #[inline(always)]
+    fn eq(&self, other: &Self) -> bool {
+        self.0.eq(&other.0)
+    }
+}
+impl<D> Eq for DataRef<D>
+where
+    D: DataMarker,
+    D::Query: Clone + Eq,
+{
+}
+impl<D> PartialOrd for DataRef<D>
+where
+    D: DataMarker,
+    D::Query: Clone + PartialOrd,
+{
+    #[inline(always)]
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        self.0.partial_cmp(&other.0)
+    }
+}
+impl<D> Ord for DataRef<D>
+where
+    D: DataMarker,
+    D::Query: Clone + Ord,
+{
+    #[inline(always)]
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.0.cmp(&other.0)
+    }
+}
+impl<D> Hash for DataRef<D>
+where
+    D: DataMarker,
+    D::Query: Hash,
+{
+    #[inline(always)]
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.0.hash(state)
     }
 }
 
@@ -177,39 +226,40 @@ pub trait DataQueryExecutor<D: DataMarker>: Sized + Send + Sync {
     type Id: Send + Sync + Hash + Eq + Clone;
 
     fn get_id(&self, data: &D) -> Self::Id;
-    async fn find_one(&self, query: D::Query) -> Result<D, Self::Error>;
+    async fn find_one(&self, query: &D::Query) -> Result<D, Self::Error>;
     // async fn find_all(&self, query: D::Query) -> Result<Vec<D>, Self::Error>;
-    async fn find_all_ids(&self, query: Option<D::Query>) -> Result<Vec<Self::Id>, Self::Error>;
-    async fn find_optional(&self, query: D::Query) -> Result<Option<D>, Self::Error>;
+    async fn find_all_ids(&self, query: Option<&D::Query>) -> Result<Vec<Self::Id>, Self::Error>;
+    async fn find_optional(&self, query: &D::Query) -> Result<Option<D>, Self::Error>;
     async fn create(&self, data: Data<D>) -> Result<(), Self::Error>;
     async fn update(&self, data: Data<D>) -> Result<(), Self::Error>;
-    async fn delete(&self, data: D::Query) -> Result<Vec<Self::Id>, Self::Error>;
+    async fn delete(&self, data: &D::Query) -> Result<Vec<Self::Id>, Self::Error>;
 }
 
 #[async_trait::async_trait]
 pub trait DataStorage<Exc: DataQueryExecutor<D>, D: DataMarker>: Send + Sync {
-    async fn find_one(&self, query: D::Query) -> Result<Data<D>, Arc<Exc::Error>>;
-    async fn find_all(&self, query: Option<D::Query>) -> Result<Vec<Data<D>>, Arc<Exc::Error>>;
-    async fn find_optional(&self, query: D::Query) -> Result<Option<Data<D>>, Arc<Exc::Error>>;
+    async fn find_one(&self, query: &D::Query) -> Result<Data<D>, Arc<Exc::Error>>;
+    async fn find_all(&self, query: Option<&D::Query>) -> Result<Vec<Data<D>>, Arc<Exc::Error>>;
+    async fn find_optional(&self, query: &D::Query) -> Result<Option<Data<D>>, Arc<Exc::Error>>;
 
     async fn insert(&self, data: D) -> Result<(), Exc::Error>;
 
-    async fn delete(&self, query: D::Query) -> Result<(), Exc::Error>;
-    async fn invalidate(&self, query: D::Query) -> Result<(), Exc::Error>;
+    async fn delete(&self, query: &D::Query) -> Result<(), Exc::Error>;
+    async fn invalidate(&self, query: &D::Query) -> Result<(), Exc::Error>;
 
     fn get_executor(&self) -> &Exc;
 }
 
 #[async_trait::async_trait]
 pub trait LookupRef<D: DataMarker> {
-    async fn lookup(&self, reference: DataRef<D>) -> Option<Data<D>>;
+    async fn lookup(&self, reference: &DataRef<D>) -> Option<Data<D>>;
 }
 
 #[macro_export]
 macro_rules! storage_manager {
     ($vis:vis $ident:ident: $ref:path, $lookup_ref_handle_error:ident) => {
+        #[derive(Clone)]
         $vis struct $ident {
-            storage: std::collections::HashMap<std::any::TypeId, Box<dyn std::any::Any + Send + Sync>>,
+            storage: std::collections::HashMap<std::any::TypeId, std::sync::Arc<dyn std::any::Any + Send + Sync>>,
             data: std::collections::HashMap<std::any::TypeId, std::any::TypeId>,
         }
 
@@ -246,20 +296,20 @@ macro_rules! storage_manager {
             ) {
                 let id = std::any::TypeId::of::<T>();
                 self.data.insert(std::any::TypeId::of::<D>(), id.clone());
-                self.storage.insert(id, Box::new(storage));
+                self.storage.insert(id, std::sync::Arc::new(storage));
             }
 
-            pub fn get_and_remove<S: 'static>(&mut self) -> Option<Box<S>> {
+            pub fn get_and_remove<S: Send + Sync + 'static>(&mut self) -> Option<std::sync::Arc<S>> {
                 self.storage.remove(&std::any::TypeId::of::<S>()).map(|v| v.downcast::<S>().expect("Downcast failed"))
             }
         }
         #[datacache::__internal::async_trait]
         impl<D: $ref + 'static> datacache::LookupRef<D> for $ident {
-            async fn lookup(&self, reference: datacache::DataRef<D>) -> Option<Data<D>>{
+            async fn lookup(&self, reference: &datacache::DataRef<D>) -> Option<Data<D>>{
                 let storage = self.get_for_data::<D>();
                 match storage {
                     Some(storage) => {
-                        let res = datacache::DataStorage::find_optional(storage, reference.0).await;
+                        let res = datacache::DataStorage::find_optional(storage, &reference.0).await;
                         match res {
                             Ok(value) => value,
                             Err(err) => {
