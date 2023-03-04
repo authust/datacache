@@ -1,4 +1,6 @@
 use std::convert::Infallible;
+use std::fmt::Debug;
+use std::fmt::Display;
 
 use datacache::Data;
 use datacache::DataMarker;
@@ -31,6 +33,9 @@ struct MacroExecutor;
 impl DataQueryExecutor<MacroData> for MacroExecutor {
     type Error = Infallible;
     type Id = i32;
+    fn get_id(&self, data: &MacroData) -> Self::Id {
+        data.id
+    }
     async fn find_one(&self, _query: MacroDataQuery) -> Result<MacroData, Self::Error> {
         todo!()
     }
@@ -58,6 +63,9 @@ struct OtherExecutor;
 impl DataQueryExecutor<OtherData> for OtherExecutor {
     type Error = Infallible;
     type Id = i32;
+    fn get_id(&self, data: &OtherData) -> Self::Id {
+        data.id
+    }
     async fn find_one(&self, _query: OtherDataQuery) -> Result<OtherData, Self::Error> {
         todo!()
     }
@@ -97,7 +105,11 @@ datacache::storage!(
 datacache::storage_ref!(pub DataRef);
 datacache::storage_ref!(MacroData: DataRef where Exc: MacroExecutor, Storage: MacroDataStorage);
 datacache::storage_ref!(OtherData: DataRef where Exc: OtherExecutor, Storage: OtherDataStorage);
-datacache::storage_manager!(pub DataManager: DataRef);
+datacache::storage_manager!(pub DataManager: DataRef, handle_error);
+
+fn handle_error(err: impl Display) {
+    println!("An error occurred {err}")
+}
 
 #[test]
 fn test_manager() {

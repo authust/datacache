@@ -173,6 +173,7 @@ dependencies = [
  "datacache_derive",
  "futures-util",
  "moka",
+ "serde",
 ]
 
 [[package]]

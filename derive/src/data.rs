@@ -85,10 +85,17 @@ pub fn derive(input: DeriveInput) -> Result<TokenStream, syn::Error> {
     let vis = input.vis;
     let ident = &input.ident;
 
+    #[cfg(not(feature = "query-serde"))]
+    let serde_derive = quote!();
+    #[cfg(feature = "query-serde")]
+    let serde_derive =
+        quote!(#[derive(datacache::__internal::Serialize, datacache::__internal::Deserialize)]);
+
     let enum_fields: Vec<EnumField> = fields.clone().into_iter().map(EnumField).collect();
     let query_ident = new_ident(&input.ident, "Query");
     let query_enum = quote! {
         #[derive(Debug, Clone, PartialEq, Eq, Hash)]
+        #serde_derive
         #[allow(non_camel_case_types)]
         #vis enum #query_ident {
             #(#enum_fields,)*

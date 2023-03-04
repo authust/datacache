@@ -15,6 +15,10 @@ pub mod __internal {
     pub use derive::storage;
     pub use futures_util::FutureExt;
     pub use moka;
+    #[cfg(feature = "serde")]
+    pub use serde::Deserialize;
+    #[cfg(feature = "serde")]
+    pub use serde::Serialize;
 }
 
 #[macro_export]
@@ -25,15 +29,9 @@ macro_rules! storage {
 }
 
 pub trait DataMarker {
-    type Query: Send + Sync;
+    type Query: Send + Sync + Hash + Eq;
 
     fn create_queries(&self) -> Vec<Self::Query>;
-}
-
-pub trait DataStorageRef {
-    type Exc: DataQueryExecutor<Self::Data>;
-    type Data: DataMarker;
-    type Storage: DataStorage<Self::Exc, Self::Data>;
 }
 
 #[repr(transparent)]
@@ -124,7 +122,7 @@ macro_rules! storage_ref {
     ($vis:vis $ident:ident) => {
         $vis trait $ident: datacache::DataMarker + Sized {
             type Exc: datacache::DataQueryExecutor<Self>;
-            type Storage: datacache::DataStorage<Self::Exc, Self>;
+            type Storage: datacache::DataStorage<Self::Exc, Self> + Clone;
         }
     };
     ($data:path: $ref:ident where Exc: $exc:path, Storage: $storage:path) => {
@@ -135,7 +133,37 @@ macro_rules! storage_ref {
     }
 }
 
-pub struct DataRef<D: DataMarker>(D::Query);
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct DataRef<D: DataMarker>(pub D::Query);
+
+impl<D> Debug for DataRef<D>
+where
+    D: DataMarker,
+    D::Query: Debug,
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_tuple("DataRef").field(&self.0).finish()
+    }
+}
+impl<D> Display for DataRef<D>
+where
+    D: DataMarker,
+    D::Query: Display,
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        Display::fmt(&self.0, f)
+    }
+}
+
+impl<D> Clone for DataRef<D>
+where
+    D: DataMarker,
+    D::Query: Clone,
+{
+    fn clone(&self) -> Self {
+        Self(self.0.clone())
+    }
+}
 
 impl<D: DataMarker> DataRef<D> {
     pub fn new(query: D::Query) -> Self {
@@ -144,9 +172,11 @@ impl<D: DataMarker> DataRef<D> {
 }
 
 #[async_trait::async_trait]
-pub trait DataQueryExecutor<D: DataMarker>: Sized {
-    type Error;
-    type Id: Send + Sync;
+pub trait DataQueryExecutor<D: DataMarker>: Sized + Send + Sync {
+    type Error: Display;
+    type Id: Send + Sync + Hash + Eq + Clone;
+
+    fn get_id(&self, data: &D) -> Self::Id;
     async fn find_one(&self, query: D::Query) -> Result<D, Self::Error>;
     // async fn find_all(&self, query: D::Query) -> Result<Vec<D>, Self::Error>;
     async fn find_all_ids(&self, query: D::Query) -> Result<Vec<Self::Id>, Self::Error>;
@@ -157,7 +187,7 @@ pub trait DataQueryExecutor<D: DataMarker>: Sized {
 }
 
 #[async_trait::async_trait]
-pub trait DataStorage<Exc: DataQueryExecutor<D>, D: DataMarker> {
+pub trait DataStorage<Exc: DataQueryExecutor<D>, D: DataMarker>: Send + Sync {
     async fn find_one(&self, query: D::Query) -> Result<Data<D>, Arc<Exc::Error>>;
     async fn find_all(&self, query: D::Query) -> Result<Vec<Data<D>>, Arc<Exc::Error>>;
     async fn find_optional(&self, query: D::Query) -> Result<Option<Data<D>>, Arc<Exc::Error>>;
@@ -166,13 +196,20 @@ pub trait DataStorage<Exc: DataQueryExecutor<D>, D: DataMarker> {
 
     async fn delete(&self, query: D::Query) -> Result<(), Exc::Error>;
     async fn invalidate(&self, query: D::Query) -> Result<(), Exc::Error>;
+
+    fn get_executor(&self) -> &Exc;
+}
+
+#[async_trait::async_trait]
+pub trait LookupRef<D: DataMarker> {
+    async fn lookup(&self, reference: DataRef<D>) -> Option<Data<D>>;
 }
 
 #[macro_export]
 macro_rules! storage_manager {
-    ($vis:vis $ident:ident: $ref:path) => {
+    ($vis:vis $ident:ident: $ref:path, $lookup_ref_handle_error:ident) => {
         $vis struct $ident {
-            storage: std::collections::HashMap<std::any::TypeId, std::sync::Arc<dyn std::any::Any>>,
+            storage: std::collections::HashMap<std::any::TypeId, Box<dyn std::any::Any + Send + Sync>>,
             data: std::collections::HashMap<std::any::TypeId, std::any::TypeId>,
         }
 
@@ -209,7 +246,30 @@ macro_rules! storage_manager {
             ) {
                 let id = std::any::TypeId::of::<T>();
                 self.data.insert(std::any::TypeId::of::<D>(), id.clone());
-                self.storage.insert(id, std::sync::Arc::new(storage));
+                self.storage.insert(id, Box::new(storage));
+            }
+
+            pub fn get_and_remove<S: 'static>(&mut self) -> Option<Box<S>> {
+                self.storage.remove(&std::any::TypeId::of::<S>()).map(|v| v.downcast::<S>().expect("Downcast failed"))
+            }
+        }
+        #[datacache::__internal::async_trait]
+        impl<D: $ref + 'static> datacache::LookupRef<D> for $ident {
+            async fn lookup(&self, reference: datacache::DataRef<D>) -> Option<Data<D>>{
+                let storage = self.get_for_data::<D>();
+                match storage {
+                    Some(storage) => {
+                        let res = datacache::DataStorage::find_optional(storage, reference.0).await;
+                        match res {
+                            Ok(value) => value,
+                            Err(err) => {
+                                $lookup_ref_handle_error(err);
+                                None
+                            }
+                        }
+                    },
+                    None => None,
+                }
             }
         }
     };

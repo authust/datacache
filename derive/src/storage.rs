@@ -119,20 +119,21 @@ pub(crate) fn storage_expand(input: StorageArgs) -> Result<TokenStream, Error> {
         query_fields: _,
     } = input;
     let out = quote! {
+        #[derive(Clone)]
         #vis struct #ident {
-            executor: #executor_path,
+            executor: std::sync::Arc<#executor_path>,
             data: datacache::__internal::moka::future::Cache<<#executor_path as datacache::DataQueryExecutor<#data_path>>::Id, datacache::Data<#data_path>>,
             query_cache: datacache::__internal::moka::future::Cache<<#data_path as datacache::DataMarker>::Query, Option<datacache::Data<#data_path>>>,
-            query: datacache::__internal::dashmap::DashMap<<#data_path as datacache::DataMarker>::Query, <#executor_path as datacache::DataQueryExecutor<#data_path>>::Id>,
+            query: std::sync::Arc<datacache::__internal::dashmap::DashMap<<#data_path as datacache::DataMarker>::Query, <#executor_path as datacache::DataQueryExecutor<#data_path>>::Id>>,
         }
 
         impl #ident {
             pub fn new(executor: #executor_path) -> Self {
                 Self {
-                    executor,
+                    executor: std::sync::Arc::new(executor),
                     data: datacache::__internal::moka::future::Cache::builder().build(),
                     query_cache: datacache::__internal::moka::future::Cache::builder().build(),
-                    query: datacache::__internal::dashmap::DashMap::new(),
+                    query: std::sync::Arc::new(datacache::__internal::dashmap::DashMap::new()),
                 }
             }
 
@@ -163,7 +164,7 @@ pub(crate) fn storage_expand(input: StorageArgs) -> Result<TokenStream, Error> {
                         return Ok(data);
                     }
                 }
-                let fut = datacache::__internal::FutureExt::map(datacache::DataQueryExecutor::find_one(&self.executor, query.clone()), |out| out.map(|v| Some(datacache::Data::new(v))));
+                let fut = datacache::__internal::FutureExt::map(datacache::DataQueryExecutor::find_one(self.executor.as_ref(), query.clone()), |out| out.map(|v| Some(datacache::Data::new(v))));
                 let data = self.query_cache.try_get_with(query, fut).await?.expect("Option should be Some(...)");
                 self.insert_data(data.clone()).await;
                 Ok(data)
@@ -173,7 +174,7 @@ pub(crate) fn storage_expand(input: StorageArgs) -> Result<TokenStream, Error> {
                 query: <#data_path as datacache::DataMarker>::Query,
             ) -> Result<Vec<datacache::Data<#data_path>>, std::sync::Arc<<#executor_path as datacache::DataQueryExecutor<#data_path>>::Error>>
             {
-                let ids = datacache::DataQueryExecutor::find_all_ids(&self.executor, query).await?;
+                let ids = datacache::DataQueryExecutor::find_all_ids(self.executor.as_ref(), query).await?;
                 let mut values = Vec::new();
                 for id in ids {
                     let data = self.find_one(<#data_path as datacache::DataMarker>::Query::#id_field(id)).await?;
@@ -195,7 +196,7 @@ pub(crate) fn storage_expand(input: StorageArgs) -> Result<TokenStream, Error> {
                         return Ok(Some(data));
                     }
                 }
-                let fut = datacache::__internal::FutureExt::map(datacache::DataQueryExecutor::find_optional(&self.executor, query.clone()), |out| {
+                let fut = datacache::__internal::FutureExt::map(datacache::DataQueryExecutor::find_optional(self.executor.as_ref(), query.clone()), |out| {
                     out.map(|opt| opt.map(datacache::Data::new))
                 });
                 let data = self.query_cache.try_get_with(query, fut).await?;
@@ -209,7 +210,7 @@ pub(crate) fn storage_expand(input: StorageArgs) -> Result<TokenStream, Error> {
                 data: #data_path,
             ) -> Result<(), <#executor_path as datacache::DataQueryExecutor<#data_path>>::Error> {
                 let data = datacache::Data::new(data);
-                match datacache::DataQueryExecutor::create(&self.executor, data.clone()).await {
+                match datacache::DataQueryExecutor::create(self.executor.as_ref(), data.clone()).await {
                     Ok(_) => {
                         self.insert_data(data).await;
                         Ok(())
@@ -224,7 +225,7 @@ pub(crate) fn storage_expand(input: StorageArgs) -> Result<TokenStream, Error> {
             ) -> Result<(), <#executor_path as datacache::DataQueryExecutor<#data_path>>::Error> {
                 self.query.remove(&query);
                 self.query_cache.invalidate(&query).await;
-                let ids = datacache::DataQueryExecutor::delete(&self.executor, query).await?;
+                let ids = datacache::DataQueryExecutor::delete(self.executor.as_ref(), query).await?;
                 for id in ids {
                     self.data.invalidate(&id).await;
                 }
@@ -236,11 +237,15 @@ pub(crate) fn storage_expand(input: StorageArgs) -> Result<TokenStream, Error> {
             ) -> Result<(), <#executor_path as datacache::DataQueryExecutor<#data_path>>::Error> {
                 self.query.remove(&query);
                 self.query_cache.invalidate(&query).await;
-                let ids = datacache::DataQueryExecutor::find_all_ids(&self.executor, query).await?;
+                let ids = datacache::DataQueryExecutor::find_all_ids(self.executor.as_ref(), query).await?;
                 for id in ids {
                     self.data.invalidate(&id).await;
                 }
                 Ok(())
+            }
+
+            fn get_executor(&self) -> &#executor_path {
+                &self.executor
             }
         }
     };
