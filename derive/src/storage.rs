@@ -122,7 +122,7 @@ pub(crate) fn storage_expand(input: StorageArgs) -> Result<TokenStream, Error> {
         #vis struct #ident {
             executor: #executor_path,
             data: datacache::__internal::moka::future::Cache<<#executor_path as datacache::DataQueryExecutor<#data_path>>::Id, datacache::Data<#data_path>>,
-            query_cache: datacache::__internal::moka::future::Cache<<#data_path as datacache::DataMarker>::Query, datacache::Data<#data_path>>,
+            query_cache: datacache::__internal::moka::future::Cache<<#data_path as datacache::DataMarker>::Query, Option<datacache::Data<#data_path>>>,
             query: datacache::__internal::dashmap::DashMap<<#data_path as datacache::DataMarker>::Query, <#executor_path as datacache::DataQueryExecutor<#data_path>>::Id>,
         }
 
@@ -163,8 +163,8 @@ pub(crate) fn storage_expand(input: StorageArgs) -> Result<TokenStream, Error> {
                         return Ok(data);
                     }
                 }
-                let fut = datacache::__internal::FutureExt::map(datacache::DataQueryExecutor::find_one(&self.executor, query.clone()), |out| out.map(datacache::Data::new));
-                let data = self.query_cache.try_get_with(query, fut).await?;
+                let fut = datacache::__internal::FutureExt::map(datacache::DataQueryExecutor::find_one(&self.executor, query.clone()), |out| out.map(|v| Some(datacache::Data::new(v))));
+                let data = self.query_cache.try_get_with(query, fut).await?.expect("Option should be Some(...)");
                 self.insert_data(data.clone()).await;
                 Ok(data)
             }
@@ -196,23 +196,13 @@ pub(crate) fn storage_expand(input: StorageArgs) -> Result<TokenStream, Error> {
                     }
                 }
                 let fut = datacache::__internal::FutureExt::map(datacache::DataQueryExecutor::find_optional(&self.executor, query.clone()), |out| {
-                    out.map_err(InternalLoadError::Error)
-                        .and_then(|opt| match opt {
-                            Some(v) => Ok(datacache::Data::new(v)),
-                            None => Err(InternalLoadError::NotFound),
-                        })
+                    out.map(|opt| opt.map(datacache::Data::new))
                 });
-                let data = self.query_cache.try_get_with(query, fut).await;
-                match data {
-                    Ok(data) => {
-                        self.insert_data(data.clone()).await;
-                        Ok(Some(data))
-                    }
-                    Err(err) => match &*err {
-                        InternalLoadError::NotFound => Ok(None),
-                        InternalLoadError::Error(err) => Err(std::sync::Arc::new(err.clone())),
-                    },
+                let data = self.query_cache.try_get_with(query, fut).await?;
+                if let Some(data) = &data {
+                    self.insert_data(data.clone()).await;
                 }
+                Ok(data)
             }
             async fn insert(
                 &self,
