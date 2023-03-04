@@ -25,7 +25,7 @@ macro_rules! storage {
 }
 
 pub trait DataMarker {
-    type Query;
+    type Query: Send + Sync;
 
     fn create_queries(&self) -> Vec<Self::Query>;
 }
@@ -146,7 +146,7 @@ impl<D: DataMarker> DataRef<D> {
 #[async_trait::async_trait]
 pub trait DataQueryExecutor<D: DataMarker>: Sized {
     type Error;
-    type Id;
+    type Id: Send + Sync;
     async fn find_one(&self, query: D::Query) -> Result<D, Self::Error>;
     // async fn find_all(&self, query: D::Query) -> Result<Vec<D>, Self::Error>;
     async fn find_all_ids(&self, query: D::Query) -> Result<Vec<Self::Id>, Self::Error>;
