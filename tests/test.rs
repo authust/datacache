@@ -39,7 +39,10 @@ impl DataQueryExecutor<MacroData> for MacroExecutor {
     async fn find_one(&self, _query: MacroDataQuery) -> Result<MacroData, Self::Error> {
         todo!()
     }
-    async fn find_all_ids(&self, _query: MacroDataQuery) -> Result<Vec<Self::Id>, Self::Error> {
+    async fn find_all_ids(
+        &self,
+        _query: Option<MacroDataQuery>,
+    ) -> Result<Vec<Self::Id>, Self::Error> {
         todo!()
     }
     async fn find_optional(
@@ -69,7 +72,10 @@ impl DataQueryExecutor<OtherData> for OtherExecutor {
     async fn find_one(&self, _query: OtherDataQuery) -> Result<OtherData, Self::Error> {
         todo!()
     }
-    async fn find_all_ids(&self, _query: OtherDataQuery) -> Result<Vec<Self::Id>, Self::Error> {
+    async fn find_all_ids(
+        &self,
+        _query: Option<OtherDataQuery>,
+    ) -> Result<Vec<Self::Id>, Self::Error> {
         todo!()
     }
     async fn find_optional(

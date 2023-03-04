@@ -171,7 +171,7 @@ pub(crate) fn storage_expand(input: StorageArgs) -> Result<TokenStream, Error> {
             }
             async fn find_all(
                 &self,
-                query: <#data_path as datacache::DataMarker>::Query,
+                query: Option<<#data_path as datacache::DataMarker>::Query>,
             ) -> Result<Vec<datacache::Data<#data_path>>, std::sync::Arc<<#executor_path as datacache::DataQueryExecutor<#data_path>>::Error>>
             {
                 let ids = datacache::DataQueryExecutor::find_all_ids(self.executor.as_ref(), query).await?;
@@ -237,7 +237,7 @@ pub(crate) fn storage_expand(input: StorageArgs) -> Result<TokenStream, Error> {
             ) -> Result<(), <#executor_path as datacache::DataQueryExecutor<#data_path>>::Error> {
                 self.query.remove(&query);
                 self.query_cache.invalidate(&query).await;
-                let ids = datacache::DataQueryExecutor::find_all_ids(self.executor.as_ref(), query).await?;
+                let ids = datacache::DataQueryExecutor::find_all_ids(self.executor.as_ref(), Some(query)).await?;
                 for id in ids {
                     self.data.invalidate(&id).await;
                 }
