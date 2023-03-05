@@ -29,7 +29,7 @@ macro_rules! storage {
 }
 
 pub trait DataMarker {
-    type Query: Send + Sync + Hash + Eq;
+    type Query: Send + Sync + Hash + Eq + Debug;
 
     fn create_queries(&self) -> Vec<Self::Query>;
 }
@@ -256,7 +256,7 @@ pub trait LookupRef<D: DataMarker> {
 
 #[macro_export]
 macro_rules! storage_manager {
-    ($vis:vis $ident:ident: $ref:path, $lookup_ref_handle_error:ident) => {
+    ($vis:vis $ident:ident: $ref:path) => {
         #[derive(Clone)]
         $vis struct $ident {
             storage: std::collections::HashMap<std::any::TypeId, std::sync::Arc<dyn std::any::Any + Send + Sync>>,
@@ -303,13 +303,20 @@ macro_rules! storage_manager {
                 self.storage.remove(&std::any::TypeId::of::<S>()).map(|v| v.downcast::<S>().expect("Downcast failed"))
             }
         }
+    };
+}
+
+#[macro_export]
+macro_rules! storage_lookup {
+    ($ident:ident: $ref:path, $lookup_ref_handle_error:ident) => {
         #[datacache::__internal::async_trait]
-        impl<D: $ref + 'static> datacache::LookupRef<D> for $ident {
-            async fn lookup(&self, reference: &datacache::DataRef<D>) -> Option<Data<D>>{
+        impl<D: $ref + 'static + Debug> datacache::LookupRef<D> for $ident {
+            async fn lookup(&self, reference: &datacache::DataRef<D>) -> Option<Data<D>> {
                 let storage = self.get_for_data::<D>();
                 match storage {
                     Some(storage) => {
-                        let res = datacache::DataStorage::find_optional(storage, &reference.0).await;
+                        let res =
+                            datacache::DataStorage::find_optional(storage, &reference.0).await;
                         match res {
                             Ok(value) => value,
                             Err(err) => {
@@ -317,7 +324,29 @@ macro_rules! storage_manager {
                                 None
                             }
                         }
-                    },
+                    }
+                    None => None,
+                }
+            }
+        }
+    };
+    ($ident:ident: $ref:path, $lookup_ref_handle_error:ident, $get_data:ident) => {
+        #[datacache::__internal::async_trait]
+        impl<D: $ref + Send + Sync + 'static> datacache::LookupRef<D> for $ident {
+            async fn lookup(&self, reference: &datacache::DataRef<D>) -> Option<Data<D>> {
+                let storage = $get_data::<D>(&self);
+                match storage {
+                    Some(storage) => {
+                        let res =
+                            datacache::DataStorage::find_optional(storage, &reference.0).await;
+                        match res {
+                            Ok(value) => value,
+                            Err(err) => {
+                                $lookup_ref_handle_error(err);
+                                None
+                            }
+                        }
+                    }
                     None => None,
                 }
             }

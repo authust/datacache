@@ -5,6 +5,8 @@ use std::fmt::Display;
 use datacache::Data;
 use datacache::DataMarker;
 use datacache::DataQueryExecutor;
+use datacache::DataRef;
+use datacache::LookupRef;
 
 #[test]
 fn test_get_storage_by_data() {
@@ -14,7 +16,7 @@ fn test_get_storage_by_data() {
     // assert!(manager.get_for_data::<TestData>().is_some());
 }
 
-#[derive(DataMarker)]
+#[derive(DataMarker, Debug, PartialEq, Eq)]
 struct MacroData {
     #[datacache(queryable)]
     id: i32,
@@ -36,8 +38,10 @@ impl DataQueryExecutor<MacroData> for MacroExecutor {
     fn get_id(&self, data: &MacroData) -> Self::Id {
         data.id
     }
-    async fn find_one(&self, _query: &MacroDataQuery) -> Result<MacroData, Self::Error> {
-        todo!()
+    async fn find_one(&self, query: &MacroDataQuery) -> Result<MacroData, Self::Error> {
+        self.find_optional(query)
+            .await
+            .map(|opt| opt.expect("Not found"))
     }
     async fn find_all_ids(
         &self,
@@ -47,9 +51,20 @@ impl DataQueryExecutor<MacroData> for MacroExecutor {
     }
     async fn find_optional(
         &self,
-        _query: &MacroDataQuery,
+        query: &MacroDataQuery,
     ) -> Result<Option<MacroData>, Self::Error> {
-        todo!()
+        if let MacroDataQuery::id(id) = query {
+            if id == &7 {
+                Ok(Some(MacroData {
+                    id: 7,
+                    slug: "Test Data".into(),
+                }))
+            } else {
+                panic!("Only id 7 lookup");
+            }
+        } else {
+            panic!("Slug lookup not tested")
+        }
     }
     async fn create(&self, _data: Data<MacroData>) -> Result<(), Self::Error> {
         todo!()
@@ -108,20 +123,39 @@ datacache::storage!(
     fields()
 );
 
-datacache::storage_ref!(pub DataRef);
-datacache::storage_ref!(MacroData: DataRef where Exc: MacroExecutor, Storage: MacroDataStorage);
-datacache::storage_ref!(OtherData: DataRef where Exc: OtherExecutor, Storage: OtherDataStorage);
-datacache::storage_manager!(pub DataManager: DataRef, handle_error);
+datacache::storage_ref!(pub StorageRef);
+datacache::storage_ref!(MacroData: StorageRef where Exc: MacroExecutor, Storage: MacroDataStorage);
+datacache::storage_ref!(OtherData: StorageRef where Exc: OtherExecutor, Storage: OtherDataStorage);
+datacache::storage_manager!(pub DataManager: StorageRef, handle_error);
 
 fn handle_error(err: impl Display) {
     println!("An error occurred {err}")
 }
 
-#[test]
-fn test_manager() {
+fn manager() -> DataManager {
     let mut storage = DataManager::new();
     storage.register_storage(MacroDataStorage::new(MacroExecutor));
     storage.register_storage(OtherDataStorage::new(OtherExecutor));
+    storage
+}
+
+#[test]
+fn test_manager() {
+    let storage = manager();
     assert!(storage.get_for_data::<MacroData>().is_some());
     assert!(storage.get_for_data::<OtherData>().is_some());
+}
+
+#[tokio::test]
+async fn test_lookup() {
+    let storage = manager();
+    let d_ref: DataRef<MacroData> = DataRef::new(MacroDataQuery::id(7));
+    let data = storage.lookup(&d_ref).await;
+    assert_eq!(
+        Some(Data::new(MacroData {
+            id: 7,
+            slug: "Test Data".into(),
+        })),
+        data,
+    );
 }

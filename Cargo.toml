@@ -21,3 +21,4 @@ serde = { version = ">=1.0.0", features = ["derive"], optional = true, default-f
 
 [dev-dependencies]
 serde = { version = ">=1.0.0", features = ["derive"] }
+tokio = { version = "1.26.0", features = ["test-util", "rt", "macros"] }
