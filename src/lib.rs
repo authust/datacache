@@ -230,8 +230,6 @@ pub trait DataQueryExecutor<D: DataMarker>: Sized + Send + Sync {
     // async fn find_all(&self, query: D::Query) -> Result<Vec<D>, Self::Error>;
     async fn find_all_ids(&self, query: Option<&D::Query>) -> Result<Vec<Self::Id>, Self::Error>;
     async fn find_optional(&self, query: &D::Query) -> Result<Option<D>, Self::Error>;
-    async fn create(&self, data: Data<D>) -> Result<(), Self::Error>;
-    async fn update(&self, data: Data<D>) -> Result<(), Self::Error>;
     async fn delete(&self, data: &D::Query) -> Result<Vec<Self::Id>, Self::Error>;
 }
 
@@ -240,8 +238,6 @@ pub trait DataStorage<Exc: DataQueryExecutor<D>, D: DataMarker>: Send + Sync {
     async fn find_one(&self, query: &D::Query) -> Result<Data<D>, Arc<Exc::Error>>;
     async fn find_all(&self, query: Option<&D::Query>) -> Result<Vec<Data<D>>, Arc<Exc::Error>>;
     async fn find_optional(&self, query: &D::Query) -> Result<Option<Data<D>>, Arc<Exc::Error>>;
-
-    async fn insert(&self, data: D) -> Result<(), Exc::Error>;
 
     async fn delete(&self, query: &D::Query) -> Result<(), Exc::Error>;
     async fn invalidate(&self, query: &D::Query) -> Result<(), Exc::Error>;

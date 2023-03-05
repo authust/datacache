@@ -205,19 +205,6 @@ pub(crate) fn storage_expand(input: StorageArgs) -> Result<TokenStream, Error> {
                 }
                 Ok(data)
             }
-            async fn insert(
-                &self,
-                data: #data_path,
-            ) -> Result<(), <#executor_path as datacache::DataQueryExecutor<#data_path>>::Error> {
-                let data = datacache::Data::new(data);
-                match datacache::DataQueryExecutor::create(self.executor.as_ref(), data.clone()).await {
-                    Ok(_) => {
-                        self.insert_data(data).await;
-                        Ok(())
-                    }
-                    err => err,
-                }
-            }
 
             async fn delete(
                 &self,

@@ -66,12 +66,6 @@ impl DataQueryExecutor<MacroData> for MacroExecutor {
             panic!("Slug lookup not tested")
         }
     }
-    async fn create(&self, _data: Data<MacroData>) -> Result<(), Self::Error> {
-        todo!()
-    }
-    async fn update(&self, _data: Data<MacroData>) -> Result<(), Self::Error> {
-        todo!()
-    }
     async fn delete(&self, _data: &MacroDataQuery) -> Result<Vec<Self::Id>, Self::Error> {
         todo!()
     }
@@ -99,12 +93,6 @@ impl DataQueryExecutor<OtherData> for OtherExecutor {
     ) -> Result<Option<OtherData>, Self::Error> {
         todo!()
     }
-    async fn create(&self, _data: Data<OtherData>) -> Result<(), Self::Error> {
-        todo!()
-    }
-    async fn update(&self, _data: Data<OtherData>) -> Result<(), Self::Error> {
-        todo!()
-    }
     async fn delete(&self, _data: &OtherDataQuery) -> Result<Vec<Self::Id>, Self::Error> {
         todo!()
     }
@@ -126,7 +114,8 @@ datacache::storage!(
 datacache::storage_ref!(pub StorageRef);
 datacache::storage_ref!(MacroData: StorageRef where Exc: MacroExecutor, Storage: MacroDataStorage);
 datacache::storage_ref!(OtherData: StorageRef where Exc: OtherExecutor, Storage: OtherDataStorage);
-datacache::storage_manager!(pub DataManager: StorageRef, handle_error);
+datacache::storage_manager!(pub DataManager: StorageRef);
+datacache::storage_lookup!(DataManager: StorageRef, handle_error);
 
 fn handle_error(err: impl Display) {
     println!("An error occurred {err}")
