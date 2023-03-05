@@ -98,6 +98,27 @@ impl<T: PartialEq> PartialEq<Data<T>> for Data<T> {
     }
 }
 
+#[cfg(feature = "serde")]
+impl<T: serde::Serialize> serde::Serialize for Data<T> {
+    #[inline(always)]
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        T::serialize(&self.0, serializer)
+    }
+}
+
+#[cfg(feature = "serde")]
+impl<'de, T: serde::Deserialize<'de> + DataMarker> serde::Deserialize<'de> for Data<T> {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        T::deserialize(deserializer).map(Data::new)
+    }
+}
+
 impl<T: Eq> Eq for Data<T> {}
 
 impl<T: PartialOrd> PartialOrd<Data<T>> for Data<T> {
